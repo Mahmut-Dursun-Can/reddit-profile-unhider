@@ -1,15 +1,23 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
+
   "name": "Reddit Profile Unhider",
   "version": "1.0",
 
-  "permissions": ["storage"],
-  "host_permissions": ["*://*.reddit.com/*"],
+  "permissions": [
+    "storage",
+    "https://arctic-shift.photon-reddit.com/*"
+  ],
+
+  "background": {
+    "scripts": ["background.js"]
+  },
 
   "content_scripts": [
     {
-      "matches": ["*://*.reddit.com/*"],
-      "js": ["content.js"]
+      "matches": ["https://www.reddit.com/user/*"],
+      "js": ["content.js"],
+      "css": ["style.css"]
     }
   ]
 }
