@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Reddit Profile Unhider",
+  "version": "1.0",
+
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.reddit.com/*"],
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.reddit.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
