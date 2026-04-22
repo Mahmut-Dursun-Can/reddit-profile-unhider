@@ -113,12 +113,17 @@
   gap: 4px;
   padding: 10px;
   text-decoration: none;
+  border-bottom: 1px solid var(--color-neutral-border-weak, #edeff1);
 }
 
-/* Üst satır: subreddit + tarih */
+.rpu-row:last-child {
+  border-bottom: none;
+}
+
+/*  subreddit + date */
 .rpu-top {
   display: flex;
-  justify-content: space-between; /* sağa sola dağıt */
+  justify-content: space-between;
   align-items: center;
 }
 
@@ -127,22 +132,24 @@
   font-weight: 600;
 }
 
-/* Tarih */
+/* date */
 .rpu-date {
   font-size: 12px;
   opacity: 0.7;
 }
 
-/* Alt metin (post title / comment) */
+/* (post title / comment) */
 .rpu-text {
   font-size: 14px;
   line-height: 1.4;
+    color: var(--color-neutral-content-strong, #1c1c1c);
+
 }
 /* ── Empty ── */
 .rpu-empty {
   text-align: center;
   padding: 24px;
-  color: var(--color-neutral-content-weak, #878a8c);
+  color: var(--color-neutral-content-strong, #1c1c1c);
   font-size: 14px;
   margin: 0;
 }

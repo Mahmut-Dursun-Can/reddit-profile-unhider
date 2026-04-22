@@ -4,9 +4,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const base = "https://arctic-shift.photon-reddit.com/api/";
   const u = encodeURIComponent(msg.username);
 
+  // before parametresi varsa ekle (sonraki sayfa için)
+  const before = msg.before ? `&before=${msg.before}` : "";
+
   Promise.all([
-    fetch(base + "comments/search?author=" + u).then(r => r.json()),
-    fetch(base + "posts/search?author=" + u).then(r => r.json())
+    fetch(base + "comments/search?author=" + u + "&limit=25" + before).then(r => r.json()),
+    fetch(base + "posts/search?author=" + u + "&limit=25" + before).then(r => r.json())
   ])
     .then(([comments, posts]) => sendResponse({
       ok: true,

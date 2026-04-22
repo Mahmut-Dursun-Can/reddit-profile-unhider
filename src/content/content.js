@@ -37,6 +37,84 @@ function getTarget() {
   );
 }
 
+function attachScrollPagination(posts, comments, mode, username) {
+  const panel = document.getElementById("rpu-panel");
+  if (!panel) return;
+
+  const list = panel.querySelector(".rpu-list");
+  let loading = false;
+  let exhausted = false;
+
+  // Mevcut en eski item'ın timestamp'i
+  let oldestTs = [...posts, ...comments]
+    .map(x => x.created_utc)
+    .reduce((a, b) => Math.min(a, b), Infinity);
+
+  window.addEventListener("scroll", async function onScroll() {
+    if (loading || exhausted) return;
+
+    const panelBottom = panel.getBoundingClientRect().bottom;
+    if (panelBottom > window.innerHeight + 300) return;
+
+    loading = true;
+
+    const requestId = ++currentRequestId;
+
+    chrome.runtime.sendMessage(
+      { type: "FETCH_USER", username, before: oldestTs },
+      res => {
+        if (!res?.ok || requestId !== currentRequestId) { loading = false; return; }
+
+        const newPosts = res.posts;
+        const newComments = res.comments;
+
+        if (newPosts.length === 0 && newComments.length === 0) {
+          exhausted = true;
+          window.removeEventListener("scroll", onScroll);
+          loading = false;
+          return;
+        }
+
+        // En eski timestamp'i güncelle
+        oldestTs = [...newPosts, ...newComments]
+          .map(x => x.created_utc)
+          .reduce((a, b) => Math.min(a, b), oldestTs);
+
+        // Yeni row'ları ekle
+        const toDate = ts =>
+          new Date(ts * 1000).toLocaleDateString("tr-TR", {
+            day: "2-digit", month: "short", year: "numeric",
+          });
+
+        let newItems = [];
+
+        if (mode === "mixed") {
+          newItems = mergeFeed(newPosts, newComments).map(item => {
+            if (item.type === "post") {
+              const p = item.data;
+              return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p));
+            } else {
+              const c = item.data;
+              return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null);
+            }
+          });
+        } else if (mode === "posts") {
+          newItems = newPosts.map(p =>
+            makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p))
+          );
+        } else if (mode === "comments") {
+          newItems = newComments.map(c =>
+            makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null)
+          );
+        }
+
+        list.insertAdjacentHTML("beforeend", newItems.join(""));
+        loading = false;
+      }
+    );
+  });
+}
+
 function waitForTarget(cb) {
   const isReady = () => {
     // empty-feed-content varsa direkt hazır
@@ -96,7 +174,6 @@ function makeRow(date, sub, url, text, image, type) {
       </div>
       ${image ? `<img class="rpu-img" src="${image}" />` : ""}
       <div class="rpu-text">${text}</div>
-      <span class="rpu-type">${type}</span>
     </a>
   `;
 }
@@ -111,7 +188,7 @@ function removePanel() {
 }
 
 /* ── RENDER ── */
-function injectPanel(posts, comments, mode) {
+function injectPanel(posts, comments, mode, username) {
   removePanel();
 
   const target = getTarget();
@@ -164,6 +241,7 @@ function injectPanel(posts, comments, mode) {
 
   target.style.display = "none";
   target.parentElement.insertBefore(panel, target);
+  attachScrollPagination(posts, comments, mode, username);
 }
 
 /* ── MAIN ── */
@@ -194,7 +272,7 @@ function _handleUser() {
 
     waitForTarget(() => {
       if (requestId !== currentRequestId) return;
-      injectPanel(res.posts, res.comments, mode);
+      injectPanel(res.posts, res.comments, mode, username);
     });
   });
 }
