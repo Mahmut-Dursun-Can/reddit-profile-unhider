@@ -3,6 +3,7 @@ import "../css/panel.css";
 /* ── GLOBAL STATE ── */
 let currentRequestId = 0;
 let handleUserTimer = null;
+let searchTimer = null;
 
 /* ── THEME ── */
 if (localStorage.getItem("rpu-theme") === "dark") {
@@ -37,89 +38,10 @@ function getTarget() {
   );
 }
 
-function attachScrollPagination(posts, comments, mode, username) {
-  const panel = document.getElementById("rpu-panel");
-  if (!panel) return;
-
-  const list = panel.querySelector(".rpu-list");
-  let loading = false;
-  let exhausted = false;
-
-  // Mevcut en eski item'ın timestamp'i
-  let oldestTs = [...posts, ...comments]
-    .map(x => x.created_utc)
-    .reduce((a, b) => Math.min(a, b), Infinity);
-
-  window.addEventListener("scroll", async function onScroll() {
-    if (loading || exhausted) return;
-
-    const panelBottom = panel.getBoundingClientRect().bottom;
-    if (panelBottom > window.innerHeight + 300) return;
-
-    loading = true;
-
-    const requestId = ++currentRequestId;
-
-    chrome.runtime.sendMessage(
-      { type: "FETCH_USER", username, before: oldestTs },
-      res => {
-        if (!res?.ok || requestId !== currentRequestId) { loading = false; return; }
-
-        const newPosts = res.posts;
-        const newComments = res.comments;
-
-        if (newPosts.length === 0 && newComments.length === 0) {
-          exhausted = true;
-          window.removeEventListener("scroll", onScroll);
-          loading = false;
-          return;
-        }
-
-        // En eski timestamp'i güncelle
-        oldestTs = [...newPosts, ...newComments]
-          .map(x => x.created_utc)
-          .reduce((a, b) => Math.min(a, b), oldestTs);
-
-        // Yeni row'ları ekle
-        const toDate = ts =>
-          new Date(ts * 1000).toLocaleDateString("tr-TR", {
-            day: "2-digit", month: "short", year: "numeric",
-          });
-
-        let newItems = [];
-
-        if (mode === "mixed") {
-          newItems = mergeFeed(newPosts, newComments).map(item => {
-            if (item.type === "post") {
-              const p = item.data;
-              return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p));
-            } else {
-              const c = item.data;
-              return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null);
-            }
-          });
-        } else if (mode === "posts") {
-          newItems = newPosts.map(p =>
-            makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p))
-          );
-        } else if (mode === "comments") {
-          newItems = newComments.map(c =>
-            makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null)
-          );
-        }
-
-        list.insertAdjacentHTML("beforeend", newItems.join(""));
-        loading = false;
-      }
-    );
-  });
-}
-
+/* ── WAIT FOR TARGET ── */
 function waitForTarget(cb) {
   const isReady = () => {
-    // empty-feed-content varsa direkt hazır
     if (document.getElementById("empty-feed-content")?.isConnected) return true;
-
     const feed = document.querySelector("shreddit-feed");
     return feed?.isConnected && feed.querySelectorAll("article").length > 0;
   };
@@ -165,7 +87,7 @@ function mergeFeed(posts, comments) {
 }
 
 /* ── ROW ── */
-function makeRow(date, sub, url, text, image, type) {
+function makeRow(date, sub, url, text, image) {
   return `
     <a href="${url}" target="_blank" class="rpu-row">
       <div class="rpu-top">
@@ -178,6 +100,43 @@ function makeRow(date, sub, url, text, image, type) {
   `;
 }
 
+/* ── BUILD ROWS ── */
+function buildRows(posts, comments, mode) {
+  const toDate = ts =>
+    new Date(ts * 1000).toLocaleDateString("tr-TR", {
+      day: "2-digit", month: "short", year: "numeric",
+    });
+
+  const searchVal = document.getElementById("rpu-search")?.value.trim() ?? "";
+
+  if (searchVal) {
+    return posts.map(p =>
+      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p))
+    );
+  }
+
+  if (mode === "mixed") {
+    return mergeFeed(posts, comments).map(item => {
+      if (item.type === "post") {
+        const p = item.data;
+        return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p));
+      } else {
+        const c = item.data;
+        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null);
+      }
+    });
+  } else if (mode === "posts") {
+    return posts.map(p =>
+      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p))
+    );
+  } else if (mode === "comments") {
+    return comments.map(c =>
+      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null)
+    );
+  }
+
+  return [];
+}
 /* ── PANEL TEMİZLE ── */
 function removePanel() {
   const old = document.getElementById("rpu-panel");
@@ -187,6 +146,58 @@ function removePanel() {
   old.remove();
 }
 
+/* ── SCROLL PAGINATION ── */
+function attachScrollPagination(mode, username) {
+  const panel = document.getElementById("rpu-panel");
+  if (!panel) return;
+
+  const list = panel.querySelector(".rpu-list");
+  let loading = false;
+  let exhausted = false;
+
+  const rows = list.querySelectorAll(".rpu-row");
+  let oldestTs = Infinity;
+  // oldestTs'i mevcut row'lardan değil, sonraki API cevabından takip edeceğiz
+  // panel'e saklayalım
+  panel.__rpu_oldestTs = panel.__rpu_oldestTs ?? Infinity;
+
+  window.addEventListener("scroll", async function onScroll() {
+    if (loading || exhausted) return;
+
+    const panelBottom = panel.getBoundingClientRect().bottom;
+    if (panelBottom > window.innerHeight + 300) return;
+
+    loading = true;
+
+    const requestId = ++currentRequestId;
+    const searchVal = panel.querySelector("#rpu-search")?.value.trim() ?? "";
+
+    chrome.runtime.sendMessage(
+      { type: "FETCH_USER", username, before: panel.__rpu_oldestTs, query: searchVal || undefined },
+      res => {
+        if (!res?.ok || requestId !== currentRequestId) { loading = false; return; }
+
+        const { posts: newPosts, comments: newComments } = res;
+
+        if (newPosts.length === 0 && newComments.length === 0) {
+          exhausted = true;
+          window.removeEventListener("scroll", onScroll);
+          loading = false;
+          return;
+        }
+
+        // En eski timestamp güncelle
+        const allTs = [...newPosts, ...newComments].map(x => x.created_utc);
+        panel.__rpu_oldestTs = Math.min(...allTs, panel.__rpu_oldestTs);
+
+        const newRows = buildRows(newPosts, newComments, mode);
+        list.insertAdjacentHTML("beforeend", newRows.join(""));
+        loading = false;
+      }
+    );
+  });
+}
+
 /* ── RENDER ── */
 function injectPanel(posts, comments, mode, username) {
   removePanel();
@@ -194,54 +205,59 @@ function injectPanel(posts, comments, mode, username) {
   const target = getTarget();
   if (!target?.isConnected) return;
 
-  const toDate = ts =>
-    new Date(ts * 1000).toLocaleDateString("tr-TR", {
-      day: "2-digit", month: "short", year: "numeric",
-    });
-
-  let items = [];
-
-  if (mode === "mixed") {
-    items = mergeFeed(posts, comments).map(item => {
-      if (item.type === "post") {
-        const p = item.data;
-        return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), "post");
-      } else {
-        const c = item.data;
-        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, "comment");
-      }
-    });
-  } else if (mode === "posts") {
-    items = posts.map(p =>
-      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), "post")
-    );
-  } else if (mode === "comments") {
-    items = comments.map(c =>
-      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, "comment")
-    );
-  }
-
   const isDark = document.documentElement.classList.contains("rpu-dark");
+  const rows = buildRows(posts, comments, mode);
 
   const panel = document.createElement("div");
   panel.id = "rpu-panel";
   panel.__rpu_target = target;
 
+  // En eski timestamp'i sakla
+  const allTs = [...posts, ...comments].map(x => x.created_utc);
+  panel.__rpu_oldestTs = allTs.length ? Math.min(...allTs) : Infinity;
+
   panel.innerHTML = `
     <div class="rpu-header">
+      <input id="rpu-search" type="text" placeholder="Search only posts" />
       <button id="rpu-theme-btn">${isDark ? "☀️" : "🌙"}</button>
     </div>
     <div class="rpu-list visible">
-      ${items.join("") || '<p class="rpu-empty">İçerik bulunamadı.</p>'}
+      ${rows.join("") || '<p class="rpu-empty">İçerik bulunamadı.</p>'}
     </div>
   `;
 
   panel.querySelector("#rpu-theme-btn")
     ?.addEventListener("click", (e) => toggleTheme(e.currentTarget));
 
+  panel.querySelector("#rpu-search")
+    ?.addEventListener("input", (e) => {
+      clearTimeout(searchTimer);
+      const q = e.target.value.trim();
+
+      searchTimer = setTimeout(() => {
+        const requestId = ++currentRequestId;
+
+        chrome.runtime.sendMessage(
+          { type: "FETCH_USER", username, query: q || undefined },
+          res => {
+            if (!res?.ok || requestId !== currentRequestId) return;
+
+            const list = panel.querySelector(".rpu-list");
+            const newRows = buildRows(res.posts, res.comments, mode);
+
+            // En eski timestamp'i sıfırla
+            const allTs = [...res.posts, ...res.comments].map(x => x.created_utc);
+            panel.__rpu_oldestTs = allTs.length ? Math.min(...allTs) : Infinity;
+
+            list.innerHTML = newRows.join("") || '<p class="rpu-empty">Sonuç bulunamadı.</p>';
+          }
+        );
+      }, 400);
+    });
+
   target.style.display = "none";
   target.parentElement.insertBefore(panel, target);
-  attachScrollPagination(posts, comments, mode, username);
+  attachScrollPagination(mode, username);
 }
 
 /* ── MAIN ── */
@@ -287,7 +303,7 @@ history.pushState = function (...args) {
 const _replace = history.replaceState.bind(history);
 history.replaceState = function (...args) {
   _replace(...args);
-  window.dispatchEvent(new Event("locationchange"))
+  window.dispatchEvent(new Event("locationchange"));
 };
 
 window.addEventListener("popstate", () =>
