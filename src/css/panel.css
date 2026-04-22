@@ -1,3 +1,61 @@
+/* ── Dark theme override ── */
+.rpu-img {
+  width: 50%;
+  border-radius: 12px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  object-fit: cover;
+  max-height: 300px;
+}
+
+.rpu-dark {
+  --color-neutral-content-strong: #e6e6e6;
+  --color-neutral-content-weak: #9aa0a6;
+  --color-neutral-border-weak: #2a2d2f;
+  --color-neutral-background-hover: #1a1c1e;
+  --color-brand: #ff4500;
+}
+
+/* Panel background ekle (eksik) */
+.rpu-dark #rpu-panel {
+  background: #0f1113;
+}
+/* ── FORCE dark text (override Reddit) ── */
+.rpu-dark #rpu-panel,
+.rpu-dark #rpu-panel * {
+  color: #e6e6e6;
+}
+
+/* Secondary text */
+.rpu-dark .rpu-date,
+.rpu-dark .rpu-empty {
+  color: #9aa0a6 !important;
+}
+
+/* Subreddit rengi sabit kalsın */
+.rpu-dark .rpu-sub {
+  color: #ff4500 !important;
+}
+
+/* Hover düzelt */
+.rpu-dark .rpu-row:hover {
+  background: #1a1c1e;
+}
+
+.rpu-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+#rpu-theme-btn {
+  background: none;
+  border: 1px solid var(--color-neutral-border-weak, #edeff1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
 #rpu-panel {
   width: 100%;
   max-width: 680px;
@@ -5,69 +63,86 @@
   font-family: inherit;
   color: var(--color-neutral-content-strong, #1c1c1c);
 }
+
+/* ── Tabs ── */
 .rpu-tabs {
   display: flex;
   border-bottom: 1px solid var(--color-neutral-border-weak, #edeff1);
   margin-bottom: 8px;
 }
 .rpu-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  background: none;
+  border: none;
   border-bottom: 2px solid transparent;
   color: var(--color-neutral-content-weak, #878a8c);
-  background: none;
-  border-top: none;
-  border-left: none;
-  border-right: none;
   transition: color .15s, border-color .15s;
 }
 .rpu-tab.active {
   color: var(--color-brand, #ff4500);
   border-bottom-color: var(--color-brand, #ff4500);
 }
+.rpu-count {
+  font-size: 12px;
+  font-weight: 400;
+  background: var(--color-neutral-background-hover, #f6f7f8);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ── List ── */
 .rpu-list {
   display: none;
   flex-direction: column;
   gap: 2px;
 }
-.rpu-list.visible { display: flex; }
+.rpu-list.visible {
+  display: flex;
+}
+
+/* Row artık dikey (vertical) */
 .rpu-row {
-  display: grid;
-  grid-template-columns: 80px 120px 1fr;
-  gap: 8px;
-  align-items: baseline;
-  padding: 8px 4px;
-  border-radius: 4px;
+  display: flex;
+  flex-direction: column; /* vertical layout */
+  gap: 4px;
+  padding: 10px;
   text-decoration: none;
-  font-size: 13px;
-  transition: background .1s;
 }
-.rpu-row:hover {
-  background: var(--color-neutral-background-hover, #f6f7f8);
+
+/* Üst satır: subreddit + tarih */
+.rpu-top {
+  display: flex;
+  justify-content: space-between; /* sağa sola dağıt */
+  align-items: center;
 }
-.rpu-date {
-  color: var(--color-neutral-content-weak, #878a8c);
-  white-space: nowrap;
-  font-size: 12px;
-}
+
+/* Subreddit */
 .rpu-sub {
-  color: var(--color-brand, #ff4500);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 600;
 }
+
+/* Tarih */
+.rpu-date {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Alt metin (post title / comment) */
 .rpu-text {
-  color: var(--color-neutral-content-strong, #1c1c1c);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.4;
 }
+/* ── Empty ── */
 .rpu-empty {
   text-align: center;
   padding: 24px;
   color: var(--color-neutral-content-weak, #878a8c);
   font-size: 14px;
+  margin: 0;
 }
