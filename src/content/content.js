@@ -1,191 +1,228 @@
 import "../css/panel.css";
 
-/* ── Init theme (load saved) ── */
-// Load saved theme from localStorage
-const savedTheme = localStorage.getItem("rpu-theme");
-if (savedTheme === "dark") {
+/* ── GLOBAL STATE ── */
+let currentRequestId = 0;
+let handleUserTimer = null;
+
+/* ── THEME ── */
+if (localStorage.getItem("rpu-theme") === "dark") {
   document.documentElement.classList.add("rpu-dark");
 }
 
-/* ── Toggle theme ── */
 function toggleTheme(btn) {
-  // Toggle class on <html>
   document.documentElement.classList.toggle("rpu-dark");
-
   const isDark = document.documentElement.classList.contains("rpu-dark");
-
-  // Persist theme
   localStorage.setItem("rpu-theme", isDark ? "dark" : "light");
-
-  // Update button icon
-  if (btn) {
-    btn.textContent = isDark ? "☀️" : "🌙";
-  }
+  if (btn) btn.textContent = isDark ? "☀️" : "🌙";
 }
 
-
-const getImage = (p) => {
-  // 1. preview (best)
-  if (p.preview?.images?.[0]?.source?.url) {
+/* ── IMAGE ── */
+function getImage(p) {
+  if (p.preview?.images?.[0]?.source?.url)
     return p.preview.images[0].source.url.replace(/&amp;/g, "&");
-  }
-
-  // 2. direct image
-  if (p.url && /\.(jpg|png|webp|gif)$/.test(p.url)) {
+  if (p.url && /\.(jpg|png|webp|gif)$/i.test(p.url))
     return p.url;
-  }
-
-  // 3. thumbnail fallback
-  if (p.thumbnail && p.thumbnail.startsWith("http")) {
+  if (p.thumbnail?.startsWith("http"))
     return p.thumbnail;
-  }
-
   return null;
-};
+}
 
-
-/* ── DOM hedefi ── */
+/* ── TARGET ── */
 function getTarget() {
   return (
-    document.getElementById("empty-feed-content") ||
     document.querySelector("shreddit-feed") ||
+    document.getElementById("empty-feed-content") ||
+    document.querySelector("[data-testid='post-container']")?.parentElement ||
     null
   );
 }
 
-/* ── Panel inject ── */
-function injectPanel(posts, comments, section) {
+function waitForTarget(cb) {
+  const isReady = () => {
+    // empty-feed-content varsa direkt hazır
+    if (document.getElementById("empty-feed-content")?.isConnected) return true;
+
+    const feed = document.querySelector("shreddit-feed");
+    return feed?.isConnected && feed.querySelectorAll("article").length > 0;
+  };
+
+  const waitForIdle = () => {
+    const feed = document.querySelector("shreddit-feed");
+    if (!feed) { cb(); return; }
+
+    let idleTimer = null;
+    const observer = new MutationObserver(() => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        observer.disconnect();
+        cb();
+      }, 300);
+    });
+
+    observer.observe(feed, { childList: true, subtree: true });
+    idleTimer = setTimeout(() => {
+      observer.disconnect();
+      cb();
+    }, 300);
+  };
+
+  if (isReady()) return waitForIdle();
+
+  let fired = false;
+  const observer = new MutationObserver(() => {
+    if (fired || !isReady()) return;
+    fired = true;
+    observer.disconnect();
+    waitForIdle();
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+/* ── MERGE ── */
+function mergeFeed(posts, comments) {
+  const p = posts.map(x => ({ type: "post", created_utc: x.created_utc, data: x }));
+  const c = comments.map(x => ({ type: "comment", created_utc: x.created_utc, data: x }));
+  return [...p, ...c].sort((a, b) => b.created_utc - a.created_utc);
+}
+
+/* ── ROW ── */
+function makeRow(date, sub, url, text, image, type) {
+  return `
+    <a href="${url}" target="_blank" class="rpu-row">
+      <div class="rpu-top">
+        <span class="rpu-sub">r/${sub}</span>
+        <span class="rpu-date">${date}</span>
+      </div>
+      ${image ? `<img class="rpu-img" src="${image}" />` : ""}
+      <div class="rpu-text">${text}</div>
+      <span class="rpu-type">${type}</span>
+    </a>
+  `;
+}
+
+/* ── PANEL TEMİZLE ── */
+function removePanel() {
+  const old = document.getElementById("rpu-panel");
+  if (!old) return;
+  const prev = old.__rpu_target;
+  if (prev) prev.style.display = "";
+  old.remove();
+}
+
+/* ── RENDER ── */
+function injectPanel(posts, comments, mode) {
+  removePanel();
+
   const target = getTarget();
-  if (!target) return;
-
-  target.innerHTML = "";
-  document.getElementById("rpu-panel")?.remove();
-
-  const mixedMode    = section === "";
-  const showPosts    = mixedMode || section === "submitted";
-  const showComments = mixedMode || section === "comments";
+  if (!target?.isConnected) return;
 
   const toDate = ts =>
     new Date(ts * 1000).toLocaleDateString("tr-TR", {
       day: "2-digit", month: "short", year: "numeric",
     });
 
-const makeRow = (date, sub, url, text, imageUrl) =>
-  `<a href="${url}" target="_blank" class="rpu-row">
+  let items = [];
 
-    <div class="rpu-top">
-      <span class="rpu-sub">r/${sub}</span>
-      <span class="rpu-date">${date}</span>
-    </div>
-
-    ${imageUrl ? `<img class="rpu-img" src="${imageUrl}" />` : ""}
-
-    <div class="rpu-text">${text}</div>
-
-  </a>`;
-
-  const postRows = posts.map(p =>
-    makeRow(
-      toDate(p.created_utc),
-      p.subreddit,
-      `https://reddit.com${p.permalink}`,
-      p.title ?? "",
-      getImage(p) // <-- KRİTİK EKLEME
-    )
-  ).join("");
-
-  const commentRows = comments.map(c =>
-    makeRow(
-      toDate(c.created_utc),
-      c.subreddit,
-      `https://reddit.com${c.permalink}`,
-      c.body?.slice(0, 100) ?? ""
-    )
-  ).join("");
+  if (mode === "mixed") {
+    items = mergeFeed(posts, comments).map(item => {
+      if (item.type === "post") {
+        const p = item.data;
+        return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), "post");
+      } else {
+        const c = item.data;
+        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, "comment");
+      }
+    });
+  } else if (mode === "posts") {
+    items = posts.map(p =>
+      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), "post")
+    );
+  } else if (mode === "comments") {
+    items = comments.map(c =>
+      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, "comment")
+    );
+  }
 
   const isDark = document.documentElement.classList.contains("rpu-dark");
 
   const panel = document.createElement("div");
   panel.id = "rpu-panel";
+  panel.__rpu_target = target;
 
   panel.innerHTML = `
     <div class="rpu-header">
-      <button id="rpu-theme-btn">
-        ${isDark ? "☀️" : "🌙"}
-      </button>
+      <button id="rpu-theme-btn">${isDark ? "☀️" : "🌙"}</button>
     </div>
-
-    ${mixedMode ? `
-      <div class="rpu-tabs">
-        <button class="rpu-tab active" data-tab="posts">
-          Postlar <span class="rpu-count">${posts.length}</span>
-        </button>
-        <button class="rpu-tab" data-tab="comments">
-          Commentler <span class="rpu-count">${comments.length}</span>
-        </button>
-      </div>` : ""}
-
-    ${showPosts ? `
-      <div class="rpu-list ${showPosts && !showComments || mixedMode ? "visible" : ""}" id="rpu-posts">
-        ${postRows || '<p class="rpu-empty">Post bulunamadı.</p>'}
-      </div>` : ""}
-
-    ${showComments ? `
-      <div class="rpu-list ${showComments && !showPosts ? "visible" : ""}" id="rpu-comments">
-        ${commentRows || '<p class="rpu-empty">Comment bulunamadı.</p>'}
-      </div>` : ""}
+    <div class="rpu-list visible">
+      ${items.join("") || '<p class="rpu-empty">İçerik bulunamadı.</p>'}
+    </div>
   `;
 
-  /* ── Theme button event ── */
-  const themeBtn = panel.querySelector("#rpu-theme-btn");
-  if (themeBtn) {
-    themeBtn.addEventListener("click", () => toggleTheme(themeBtn));
+  panel.querySelector("#rpu-theme-btn")
+    ?.addEventListener("click", (e) => toggleTheme(e.currentTarget));
+
+  target.style.display = "none";
+  target.parentElement.insertBefore(panel, target);
+}
+
+/* ── MAIN ── */
+function handleUser() {
+  clearTimeout(handleUserTimer);
+  handleUserTimer = setTimeout(_handleUser, 150);
+}
+
+function _handleUser() {
+  const match = location.pathname.match(/^\/user\/([^/]+)(?:\/([^/]*))?/);
+  if (!match) {
+    removePanel();
+    return;
   }
 
-  /* ── Tab handler ── */
-  panel.querySelectorAll(".rpu-tab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      panel.querySelectorAll(".rpu-tab").forEach(t => t.classList.remove("active"));
-      panel.querySelectorAll(".rpu-list").forEach(l => l.classList.remove("visible"));
-      btn.classList.add("active");
-      panel.querySelector(`#rpu-${btn.dataset.tab}`)?.classList.add("visible");
-    });
-  });
-
-  target.appendChild(panel);
-}
-
-/* ── URL parse & fetch ── */
-function handleUser() {
-  const match = location.pathname.match(/^\/user\/([^/]+)(?:\/([^/]*))?/);
-  if (!match) return;
-
   const username = match[1];
-  const section  = (match[2] ?? "").trim();
+  const section = (match[2] ?? "").trim();
 
-  if (!["", "submitted", "comments"].includes(section)) return;
+  const modeMap = { "": "mixed", submitted: "posts", comments: "comments" };
+  const mode = modeMap[section];
+  if (!mode) return;
+
+  const requestId = ++currentRequestId;
 
   chrome.runtime.sendMessage({ type: "FETCH_USER", username }, res => {
-    if (chrome.runtime.lastError) return;
     if (!res?.ok) return;
+    if (requestId !== currentRequestId) return;
 
-    const tryInject = () => {
-      if (getTarget()) {
-        injectPanel(res.posts, res.comments, section);
-      } else {
-        setTimeout(tryInject, 300);
-      }
-    };
-    tryInject();
+    waitForTarget(() => {
+      if (requestId !== currentRequestId) return;
+      injectPanel(res.posts, res.comments, mode);
+    });
   });
 }
 
-/* ── SPA navigation ── */
-const _pushState = history.pushState.bind(history);
+/* ── NAVIGATION ── */
+const _push = history.pushState.bind(history);
 history.pushState = function (...args) {
-  _pushState(...args);
+  _push(...args);
   window.dispatchEvent(new Event("locationchange"));
 };
+
+const _replace = history.replaceState.bind(history);
+history.replaceState = function (...args) {
+  _replace(...args);
+  window.dispatchEvent(new Event("locationchange"))
+};
+
+window.addEventListener("popstate", () =>
+  window.dispatchEvent(new Event("locationchange"))
+);
+
+let lastUrl = location.href;
+setInterval(() => {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href;
+    window.dispatchEvent(new Event("locationchange"));
+  }
+}, 500);
 
 window.addEventListener("locationchange", handleUser);
 handleUser();
