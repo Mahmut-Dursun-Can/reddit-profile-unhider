@@ -7,8 +7,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const titleQ = msg.query ? `&title=${encodeURIComponent(msg.query)}` : "";
 
   Promise.all([
-    fetch(base + "comments/search?author=" + u + "&limit=25" + before).then(r => r.json()),
-    fetch(base + "posts/search?author=" + u + "&limit=25" + before + titleQ).then(r => r.json())
+    fetch(base + "comments/search?author=" + u + "&limit=25" + before + "&md2html=true").then(r => r.json()),
+    fetch(base + "posts/search?author=" + u + "&limit=25" + before + titleQ + "&md2html=true").then(r => r.json())
   ])
     .then(([comments, posts]) => sendResponse({
       ok: true,

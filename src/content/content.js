@@ -112,10 +112,23 @@ function subIconHTML(sub, iconMap) {
   return `<span class="rpu-sub-icon rpu-sub-icon--fallback">${sub[0].toUpperCase()}</span>`;
 }
 
-/* ── ROW ── */
-function makeRow(date, sub, url, text, image, iconMap) {
+
+
+
+/* ── POST SELFTEXT HTML ── */
+function selftextHTML(p) {
+  if (!p.selftext && !p.selftext_html) return "";
   return `
-    <a href="${url}" target="_blank" class="rpu-row">
+    <div class="rpu-selftext rpu-md">
+      ${p.selftext_html ?? `<p>${p.selftext?.slice(0, 1500) ?? ""}${(p.selftext?.length ?? 0) > 1500 ? "…" : ""}</p>`}
+    </div>
+  `;
+}
+
+/* ── ROW ── */
+function makeRow(date, sub, url, title, image, iconMap, post = null) {
+  return `
+    <div class="rpu-row" data-url="${url}">
       <div class="rpu-top">
         <div class="rpu-sub-info">
           ${subIconHTML(sub, iconMap)}
@@ -123,17 +136,20 @@ function makeRow(date, sub, url, text, image, iconMap) {
         </div>
         <span class="rpu-date">${date}</span>
       </div>
+
+      <div class="rpu-title">${title}</div>
+
+      ${post ? selftextHTML(post) : ""}
+
       ${image ? `<img class="rpu-img" src="${image}" />` : ""}
-      <div class="rpu-text">${text}</div>
-    </a>
+    </div>
   `;
 }
 
 /* ── BUILD ROWS ── */
 function buildRows(posts, comments, mode, iconMap = {}) {
   const toDate = ts => {
-    const locale = navigator.language || "en-US"; // fallback
-
+    const locale = navigator.language || "en-US";
     return new Date(ts * 1000).toLocaleDateString(locale, {
       day: "2-digit",
       month: "short",
@@ -144,28 +160,60 @@ function buildRows(posts, comments, mode, iconMap = {}) {
   const searchVal = document.getElementById("rpu-search")?.value.trim() ?? "";
 
   if (searchVal) {
-    return posts.map(p =>
-      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap)
-    );
+    return posts.map(p => {
+      const key = `t3_${p.id}`;
+      return makeRow(
+        toDate(p.created_utc), p.subreddit,
+        `https://reddit.com${p.permalink}`,
+        p.title ?? "", getImage(p), iconMap,
+        p
+      );
+    });
   }
 
   if (mode === "mixed") {
     return mergeFeed(posts, comments).map(item => {
       if (item.type === "post") {
         const p = item.data;
-        return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap);
+        const key = `t3_${p.id}`;
+        return makeRow(
+          toDate(p.created_utc), p.subreddit,
+          `https://reddit.com${p.permalink}`,
+          p.title ?? "", getImage(p), iconMap,
+          p
+        );
       } else {
         const c = item.data;
-        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 500) ?? "", null, iconMap);
+        return makeRow(
+          toDate(c.created_utc), c.subreddit,
+          `https://reddit.com${c.permalink}`,
+          c.body_html
+            ? `<div class="rpu-md">${c.body_html}</div>`
+            : (c.body?.slice(0, 500) ?? ""),
+          null, iconMap, null, null
+        );
       }
     });
   } else if (mode === "posts") {
-    return posts.map(p =>
-      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap)
-    );
+    return posts.map(p => {
+      const key = `t3_${p.id}`;
+      return makeRow(
+        toDate(p.created_utc), p.subreddit,
+        `https://reddit.com${p.permalink}`,
+        p.title ?? "", getImage(p), iconMap,
+        p
+      );
+    });
   } else if (mode === "comments") {
     return comments.map(c =>
-      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 500) ?? "", null, iconMap)
+      makeRow(
+        toDate(c.created_utc), c.subreddit,
+        `https://reddit.com${c.permalink}`,
+        c.body_html
+          ? `<div class="rpu-md">${c.body_html}</div>`
+          : (c.body?.slice(0, 500) ?? ""),
+        null, iconMap, null, null
+      )
     );
   }
 
@@ -181,6 +229,7 @@ function removePanel() {
 }
 
 /* ── SCROLL PAGINATION ── */
+let scrollHandler = null;
 function attachScrollPagination(mode, username, iconMap) {
   const panel = document.getElementById("rpu-panel");
   if (!panel) return;
@@ -189,7 +238,11 @@ function attachScrollPagination(mode, username, iconMap) {
   let loading = false;
   let exhausted = false;
 
-  window.addEventListener("scroll", async function onScroll() {
+  if (scrollHandler) {
+    window.removeEventListener("scroll", scrollHandler);
+  }
+
+  const onScroll = async () => {
     if (loading || exhausted) return;
 
     const panelBottom = panel.getBoundingClientRect().bottom;
@@ -225,7 +278,10 @@ function attachScrollPagination(mode, username, iconMap) {
         loading = false;
       }
     );
-  });
+  };
+
+  scrollHandler = onScroll;
+  window.addEventListener("scroll", onScroll);
 }
 
 /* ── RENDER ── */
