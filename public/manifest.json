@@ -6,6 +6,7 @@
 
   "permissions": [
     "storage",
+    "https://www.reddit.com/*",
     "https://arctic-shift.photon-reddit.com/*"
   ],
 

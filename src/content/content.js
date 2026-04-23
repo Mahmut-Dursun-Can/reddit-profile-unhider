@@ -5,6 +5,29 @@ let currentRequestId = 0;
 let handleUserTimer = null;
 let searchTimer = null;
 
+/* ── SUB ICON CACHE ── */
+const subIconCache = {};
+
+async function fetchIconMap(subs) {
+  const missing = [...new Set(subs)].filter(s => !(s in subIconCache));
+  await Promise.all(
+    missing.map(async sub => {
+      try {
+        const r = await fetch(`https://www.reddit.com/r/${sub}/about.json`);
+        const j = await r.json();
+        const raw =
+          j?.data?.community_icon ||
+          j?.data?.icon_img ||
+          "";
+        subIconCache[sub] = raw.replace(/&amp;/g, "&").split("?")[0];
+      } catch {
+        subIconCache[sub] = "";
+      }
+    })
+  );
+  return Object.fromEntries(subs.map(s => [s, subIconCache[s] ?? ""]));
+}
+
 /* ── THEME ── */
 if (localStorage.getItem("rpu-theme") === "dark") {
   document.documentElement.classList.add("rpu-dark");
@@ -53,17 +76,11 @@ function waitForTarget(cb) {
     let idleTimer = null;
     const observer = new MutationObserver(() => {
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        observer.disconnect();
-        cb();
-      }, 300);
+      idleTimer = setTimeout(() => { observer.disconnect(); cb(); }, 300);
     });
 
     observer.observe(feed, { childList: true, subtree: true });
-    idleTimer = setTimeout(() => {
-      observer.disconnect();
-      cb();
-    }, 300);
+    idleTimer = setTimeout(() => { observer.disconnect(); cb(); }, 300);
   };
 
   if (isReady()) return waitForIdle();
@@ -86,12 +103,24 @@ function mergeFeed(posts, comments) {
   return [...p, ...c].sort((a, b) => b.created_utc - a.created_utc);
 }
 
+/* ── SUB ICON HTML ── */
+function subIconHTML(sub, iconMap) {
+  const url = iconMap?.[sub];
+  if (url) {
+    return `<img class="rpu-sub-icon" src="${url}" alt="r/${sub}" />`;
+  }
+  return `<span class="rpu-sub-icon rpu-sub-icon--fallback">${sub[0].toUpperCase()}</span>`;
+}
+
 /* ── ROW ── */
-function makeRow(date, sub, url, text, image) {
+function makeRow(date, sub, url, text, image, iconMap) {
   return `
     <a href="${url}" target="_blank" class="rpu-row">
       <div class="rpu-top">
-        <span class="rpu-sub">r/${sub}</span>
+        <div class="rpu-sub-info">
+          ${subIconHTML(sub, iconMap)}
+          <span class="rpu-sub">r/${sub}</span>
+        </div>
         <span class="rpu-date">${date}</span>
       </div>
       ${image ? `<img class="rpu-img" src="${image}" />` : ""}
@@ -101,7 +130,7 @@ function makeRow(date, sub, url, text, image) {
 }
 
 /* ── BUILD ROWS ── */
-function buildRows(posts, comments, mode) {
+function buildRows(posts, comments, mode, iconMap = {}) {
   const toDate = ts =>
     new Date(ts * 1000).toLocaleDateString("tr-TR", {
       day: "2-digit", month: "short", year: "numeric",
@@ -111,7 +140,7 @@ function buildRows(posts, comments, mode) {
 
   if (searchVal) {
     return posts.map(p =>
-      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p))
+      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap)
     );
   }
 
@@ -119,24 +148,25 @@ function buildRows(posts, comments, mode) {
     return mergeFeed(posts, comments).map(item => {
       if (item.type === "post") {
         const p = item.data;
-        return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p));
+        return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap);
       } else {
         const c = item.data;
-        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null);
+        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, iconMap);
       }
     });
   } else if (mode === "posts") {
     return posts.map(p =>
-      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p))
+      makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap)
     );
   } else if (mode === "comments") {
     return comments.map(c =>
-      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null)
+      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, iconMap)
     );
   }
 
   return [];
 }
+
 /* ── PANEL TEMİZLE ── */
 function removePanel() {
   const old = document.getElementById("rpu-panel");
@@ -147,19 +177,13 @@ function removePanel() {
 }
 
 /* ── SCROLL PAGINATION ── */
-function attachScrollPagination(mode, username) {
+function attachScrollPagination(mode, username, iconMap) {
   const panel = document.getElementById("rpu-panel");
   if (!panel) return;
 
   const list = panel.querySelector(".rpu-list");
   let loading = false;
   let exhausted = false;
-
-  const rows = list.querySelectorAll(".rpu-row");
-  let oldestTs = Infinity;
-  // oldestTs'i mevcut row'lardan değil, sonraki API cevabından takip edeceğiz
-  // panel'e saklayalım
-  panel.__rpu_oldestTs = panel.__rpu_oldestTs ?? Infinity;
 
   window.addEventListener("scroll", async function onScroll() {
     if (loading || exhausted) return;
@@ -168,13 +192,12 @@ function attachScrollPagination(mode, username) {
     if (panelBottom > window.innerHeight + 300) return;
 
     loading = true;
-
     const requestId = ++currentRequestId;
     const searchVal = panel.querySelector("#rpu-search")?.value.trim() ?? "";
 
     chrome.runtime.sendMessage(
       { type: "FETCH_USER", username, before: panel.__rpu_oldestTs, query: searchVal || undefined },
-      res => {
+      async res => {
         if (!res?.ok || requestId !== currentRequestId) { loading = false; return; }
 
         const { posts: newPosts, comments: newComments } = res;
@@ -186,11 +209,14 @@ function attachScrollPagination(mode, username) {
           return;
         }
 
-        // En eski timestamp güncelle
+        const subs = [...newPosts.map(p => p.subreddit), ...newComments.map(c => c.subreddit)];
+        const newIconMap = await fetchIconMap(subs);
+        Object.assign(iconMap, newIconMap);
+
         const allTs = [...newPosts, ...newComments].map(x => x.created_utc);
         panel.__rpu_oldestTs = Math.min(...allTs, panel.__rpu_oldestTs);
 
-        const newRows = buildRows(newPosts, newComments, mode);
+        const newRows = buildRows(newPosts, newComments, mode, iconMap);
         list.insertAdjacentHTML("beforeend", newRows.join(""));
         loading = false;
       }
@@ -199,20 +225,19 @@ function attachScrollPagination(mode, username) {
 }
 
 /* ── RENDER ── */
-function injectPanel(posts, comments, mode, username) {
+function injectPanel(posts, comments, mode, username, iconMap = {}) {
   removePanel();
 
   const target = getTarget();
   if (!target?.isConnected) return;
 
   const isDark = document.documentElement.classList.contains("rpu-dark");
-  const rows = buildRows(posts, comments, mode);
+  const rows = buildRows(posts, comments, mode, iconMap);
 
   const panel = document.createElement("div");
   panel.id = "rpu-panel";
   panel.__rpu_target = target;
 
-  // En eski timestamp'i sakla
   const allTs = [...posts, ...comments].map(x => x.created_utc);
   panel.__rpu_oldestTs = allTs.length ? Math.min(...allTs) : Infinity;
 
@@ -230,7 +255,7 @@ function injectPanel(posts, comments, mode, username) {
     ?.addEventListener("click", (e) => toggleTheme(e.currentTarget));
 
   panel.querySelector("#rpu-search")
-    ?.addEventListener("input", (e) => {
+    ?.addEventListener("input", async (e) => {
       clearTimeout(searchTimer);
       const q = e.target.value.trim();
 
@@ -239,13 +264,16 @@ function injectPanel(posts, comments, mode, username) {
 
         chrome.runtime.sendMessage(
           { type: "FETCH_USER", username, query: q || undefined },
-          res => {
+          async res => {
             if (!res?.ok || requestId !== currentRequestId) return;
 
-            const list = panel.querySelector(".rpu-list");
-            const newRows = buildRows(res.posts, res.comments, mode);
+            const subs = [...res.posts.map(p => p.subreddit), ...res.comments.map(c => c.subreddit)];
+            const newIconMap = await fetchIconMap(subs);
+            Object.assign(iconMap, newIconMap);
 
-            // En eski timestamp'i sıfırla
+            const list = panel.querySelector(".rpu-list");
+            const newRows = buildRows(res.posts, res.comments, mode, iconMap);
+
             const allTs = [...res.posts, ...res.comments].map(x => x.created_utc);
             panel.__rpu_oldestTs = allTs.length ? Math.min(...allTs) : Infinity;
 
@@ -257,7 +285,7 @@ function injectPanel(posts, comments, mode, username) {
 
   target.style.display = "none";
   target.parentElement.insertBefore(panel, target);
-  attachScrollPagination(mode, username);
+  attachScrollPagination(mode, username, iconMap);
 }
 
 /* ── MAIN ── */
@@ -266,29 +294,30 @@ function handleUser() {
   handleUserTimer = setTimeout(_handleUser, 150);
 }
 
-function _handleUser() {
+async function _handleUser() {
   const match = location.pathname.match(/^\/user\/([^/]+)(?:\/([^/]*))?/);
-  if (!match) {
-    removePanel();
-    return;
-  }
+  if (!match) { removePanel(); return; }
 
   const username = match[1];
   const section = (match[2] ?? "").trim();
-
   const modeMap = { "": "mixed", submitted: "posts", comments: "comments" };
   const mode = modeMap[section];
   if (!mode) return;
 
   const requestId = ++currentRequestId;
 
-  chrome.runtime.sendMessage({ type: "FETCH_USER", username }, res => {
-    if (!res?.ok) return;
-    if (requestId !== currentRequestId) return;
+  chrome.runtime.sendMessage({ type: "FETCH_USER", username }, async res => {
+    if (!res?.ok || requestId !== currentRequestId) return;
+
+    const subs = [
+      ...res.posts.map(p => p.subreddit),
+      ...res.comments.map(c => c.subreddit),
+    ];
+    const iconMap = await fetchIconMap(subs);
 
     waitForTarget(() => {
       if (requestId !== currentRequestId) return;
-      injectPanel(res.posts, res.comments, mode, username);
+      injectPanel(res.posts, res.comments, mode, username, iconMap);
     });
   });
 }
