@@ -424,6 +424,7 @@ function handleUser() {
 
 async function _handleUser() {
   const match = location.pathname.match(/^\/user\/([^/]+)(?:\/([^/]*))?/);
+    console.log("[RPU] _handleUser", location.pathname, match);
   if (!match) {
     removePanel();
     return;
