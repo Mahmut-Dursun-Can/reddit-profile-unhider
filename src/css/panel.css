@@ -7,47 +7,15 @@
   object-fit: cover;
   max-height: 300px;
 }
-
-/* ── Dark theme ── */
-.rpu-dark {
-  --color-neutral-content-strong: #e6e6e6;
-  --color-neutral-content-weak: #9aa0a6;
-  --color-neutral-border-weak: #2a2d2f;
-  --color-neutral-background-hover: #1a1c1e;
-  --color-brand: #ff4500;
-}
-
-.rpu-dark #rpu-panel {
-  background: #0f1113;
-}
-
-.rpu-dark #rpu-panel,
-.rpu-dark #rpu-panel * {
-  color: #e6e6e6;
-}
-
-.rpu-dark .rpu-date,
-.rpu-dark .rpu-empty {
-  color: #9aa0a6 !important;
-}
-
-.rpu-dark .rpu-sub {
-  color: #ff4500 !important;
-}
-
-.rpu-dark .rpu-row:hover {
-  background: #1a1c1e;
-}
-
 /* ── Panel ── */
 #rpu-panel {
   width: 100%;
   max-width: 680px;
   margin: 0 auto;
+  background: #ffffff;
   font-family: inherit;
   color: var(--color-neutral-content-strong, #1c1c1c);
 }
-
 /* ── Header ── */
 .rpu-header {
   display: flex;
@@ -186,4 +154,71 @@
   color: var(--color-neutral-content-strong, #1c1c1c);
   font-size: 14px;
   margin: 0;
+}
+
+/* ── Dark theme ── */
+.rpu-dark {
+  --color-neutral-content-strong: #e6e6e6;
+  --color-neutral-content-weak: #9aa0a6;
+  --color-neutral-border-weak: #2a2d2f;
+  --color-neutral-background-hover: #1a1c1e;
+  --color-brand: #ff4500;
+}
+
+.rpu-dark #rpu-panel {
+  background: #0f1113;
+  color: var(--color-neutral-content-strong);
+}
+
+.rpu-dark #rpu-panel * {
+  color: inherit;
+}
+
+.rpu-dark #rpu-panel,
+.rpu-dark #rpu-panel * {
+  color: #e6e6e6;
+}
+
+
+.rpu-dark .rpu-date,
+.rpu-dark .rpu-empty {
+  color: #9aa0a6 !important;
+}
+
+.rpu-dark .rpu-sub {
+  color: #ff4500 !important;
+}
+
+.rpu-dark .rpu-row:hover {
+  background: #1a1c1e;
+}
+/* ── Dark theme row text override ── */
+.rpu-dark .rpu-row {
+  color: #ffffff;
+  border-bottom: 1px solid #ffffff;
+  }
+
+/* ── Search placeholder (dark mode) ── */
+.rpu-dark #rpu-search::placeholder {
+  color: #e6e6e6;
+  opacity: 1;
+}
+
+.rpu-dark #rpu-search::-webkit-input-placeholder {
+  color: #e6e6e6;
+}
+
+.rpu-dark #rpu-search:-ms-input-placeholder {
+  color: #e6e6e6;
+}
+.rpu-dark #rpu-search {
+  border: none; /* removes border */
+  border-radius: 6px;
+  padding: 6px 10px;
+  outline: none;
+  color: #e6e6e6 !important;
+  background: #0f1113;
+}
+.rpu-dark #rpu-search:focus {
+  border: 1px solid #ff4500;
 }

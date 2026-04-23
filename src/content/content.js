@@ -131,10 +131,15 @@ function makeRow(date, sub, url, text, image, iconMap) {
 
 /* ── BUILD ROWS ── */
 function buildRows(posts, comments, mode, iconMap = {}) {
-  const toDate = ts =>
-    new Date(ts * 1000).toLocaleDateString("tr-TR", {
-      day: "2-digit", month: "short", year: "numeric",
+  const toDate = ts => {
+    const locale = navigator.language || "en-US"; // fallback
+
+    return new Date(ts * 1000).toLocaleDateString(locale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
     });
+  };
 
   const searchVal = document.getElementById("rpu-search")?.value.trim() ?? "";
 
@@ -151,7 +156,7 @@ function buildRows(posts, comments, mode, iconMap = {}) {
         return makeRow(toDate(p.created_utc), p.subreddit, `https://reddit.com${p.permalink}`, p.title ?? "", getImage(p), iconMap);
       } else {
         const c = item.data;
-        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, iconMap);
+        return makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 500) ?? "", null, iconMap);
       }
     });
   } else if (mode === "posts") {
@@ -160,14 +165,13 @@ function buildRows(posts, comments, mode, iconMap = {}) {
     );
   } else if (mode === "comments") {
     return comments.map(c =>
-      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 120) ?? "", null, iconMap)
+      makeRow(toDate(c.created_utc), c.subreddit, `https://reddit.com${c.permalink}`, c.body?.slice(0, 500) ?? "", null, iconMap)
     );
   }
 
   return [];
 }
 
-/* ── PANEL TEMİZLE ── */
 function removePanel() {
   const old = document.getElementById("rpu-panel");
   if (!old) return;
