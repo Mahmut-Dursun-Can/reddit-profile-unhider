@@ -79,6 +79,8 @@
 
 /* ── Row ── */
 .rpu-row {
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -86,6 +88,9 @@
   text-decoration: none;
   border: 1px solid #272729;
   border-radius: 8px;
+}
+.rpu-row:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 

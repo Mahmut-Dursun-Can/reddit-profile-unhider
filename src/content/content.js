@@ -61,39 +61,70 @@ function getTarget() {
   );
 }
 
-/* ── WAIT FOR TARGET ── */
+/*
+ * ── WAIT FOR STABLE TARGET ──
+ *
+ * Reddit SPA'nin iki aşamalı DOM'unu handle eder:
+ *   Faz 1 – target Connected, ama parentElement henüz son haline gelmemiş.
+ *   Faz 2 – target artık yerinde ve parentElement 500ms boyunca değişmedi.
+ *
+ * Eski hali: MutationObserver article varlığını görünce hemen callback'i tetikliyordu.
+ * Yeni hali: target STABLE_MS boyunca aynı parentElement'e sahipken cb çağrılır.
+ */
 function waitForTarget(cb) {
-  const isReady = () => {
+  const STABLE_MS = 500;   // parentElement'in değişmeden beklenmesi gereken süre
+  const TIMEOUT_MS = 5000; // maksimum toplam bekleme süresi
+  let stableTimer = null;
+  let totalTimer = null;
+  let fired = false;
+
+  function fire() {
+    if (fired) return;
+    fired = true;
+    cleanup();
+    cb();
+  }
+
+  function cleanup() {
+    observer.disconnect();
+    clearTimeout(stableTimer);
+    clearTimeout(totalTimer);
+  }
+
+  function isReady() {
     if (document.getElementById("empty-feed-content")?.isConnected) return true;
     const feed = document.querySelector("shreddit-feed");
     return feed?.isConnected && feed.querySelectorAll("article").length > 0;
-  };
+  }
 
-  const waitForIdle = () => {
-    const feed = document.querySelector("shreddit-feed");
-    if (!feed) { cb(); return; }
+  function checkStability() {
+    if (!isReady()) return;
 
-    let idleTimer = null;
-    const observer = new MutationObserver(() => {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { observer.disconnect(); cb(); }, 300);
-    });
+    const target = getTarget();
+    if (!target?.parentElement) return;
 
-    observer.observe(feed, { childList: true, subtree: true });
-    idleTimer = setTimeout(() => { observer.disconnect(); cb(); }, 300);
-  };
+    const snapshot = target.parentElement;
 
-  if (isReady()) return waitForIdle();
+    clearTimeout(stableTimer);
+    stableTimer = setTimeout(() => {
+      // STABLE_MS sonra parentElement hâlâ aynı mı?
+      if (getTarget()?.parentElement === snapshot) {
+        fire();
+      }
+      // değiştiyse bir sonraki mutation tetikleyecek, beklemeye devam
+    }, STABLE_MS);
+  }
 
-  let fired = false;
-  const observer = new MutationObserver(() => {
-    if (fired || !isReady()) return;
-    fired = true;
-    observer.disconnect();
-    waitForIdle();
-  });
-
+  const observer = new MutationObserver(checkStability);
   observer.observe(document.body, { childList: true, subtree: true });
+
+  // Sayfa zaten hazırsa hemen stability check başlat
+  checkStability();
+
+  // Hard timeout – hiçbir şey olmazsa her halükârda dene
+  totalTimer = setTimeout(() => {
+    if (!fired) fire();
+  }, TIMEOUT_MS);
 }
 
 /* ── MERGE ── */
@@ -111,9 +142,6 @@ function subIconHTML(sub, iconMap) {
   }
   return `<span class="rpu-sub-icon rpu-sub-icon--fallback">${sub[0].toUpperCase()}</span>`;
 }
-
-
-
 
 /* ── POST SELFTEXT HTML ── */
 function selftextHTML(p) {
@@ -160,22 +188,20 @@ function buildRows(posts, comments, mode, iconMap = {}) {
   const searchVal = document.getElementById("rpu-search")?.value.trim() ?? "";
 
   if (searchVal) {
-    return posts.map(p => {
-      const key = `t3_${p.id}`;
-      return makeRow(
+    return posts.map(p =>
+      makeRow(
         toDate(p.created_utc), p.subreddit,
         `https://reddit.com${p.permalink}`,
         p.title ?? "", getImage(p), iconMap,
         p
-      );
-    });
+      )
+    );
   }
 
   if (mode === "mixed") {
     return mergeFeed(posts, comments).map(item => {
       if (item.type === "post") {
         const p = item.data;
-        const key = `t3_${p.id}`;
         return makeRow(
           toDate(p.created_utc), p.subreddit,
           `https://reddit.com${p.permalink}`,
@@ -190,20 +216,19 @@ function buildRows(posts, comments, mode, iconMap = {}) {
           c.body_html
             ? `<div class="rpu-md">${c.body_html}</div>`
             : (c.body?.slice(0, 500) ?? ""),
-          null, iconMap, null, null
+          null, iconMap, null
         );
       }
     });
   } else if (mode === "posts") {
-    return posts.map(p => {
-      const key = `t3_${p.id}`;
-      return makeRow(
+    return posts.map(p =>
+      makeRow(
         toDate(p.created_utc), p.subreddit,
         `https://reddit.com${p.permalink}`,
         p.title ?? "", getImage(p), iconMap,
         p
-      );
-    });
+      )
+    );
   } else if (mode === "comments") {
     return comments.map(c =>
       makeRow(
@@ -212,7 +237,7 @@ function buildRows(posts, comments, mode, iconMap = {}) {
         c.body_html
           ? `<div class="rpu-md">${c.body_html}</div>`
           : (c.body?.slice(0, 500) ?? ""),
-        null, iconMap, null, null
+        null, iconMap, null
       )
     );
   }
@@ -220,16 +245,23 @@ function buildRows(posts, comments, mode, iconMap = {}) {
   return [];
 }
 
+/* ── REMOVE PANEL ── */
 function removePanel() {
   const old = document.getElementById("rpu-panel");
   if (!old) return;
-  const prev = old.__rpu_target;
-  if (prev) prev.style.display = "";
+
+  // __rpu_target ref'i stale olabilir; önce DOM'dan bul, yoksa ref'e dön
+  const hiddenTarget =
+    (old.__rpu_target_id && document.getElementById(old.__rpu_target_id)) ||
+    old.__rpu_target;
+
+  if (hiddenTarget) hiddenTarget.style.display = "";
   old.remove();
 }
 
 /* ── SCROLL PAGINATION ── */
 let scrollHandler = null;
+
 function attachScrollPagination(mode, username, iconMap) {
   const panel = document.getElementById("rpu-panel");
   if (!panel) return;
@@ -240,6 +272,7 @@ function attachScrollPagination(mode, username, iconMap) {
 
   if (scrollHandler) {
     window.removeEventListener("scroll", scrollHandler);
+    scrollHandler = null;
   }
 
   const onScroll = async () => {
@@ -285,11 +318,33 @@ function attachScrollPagination(mode, username, iconMap) {
 }
 
 /* ── RENDER ── */
-function injectPanel(posts, comments, mode, username, iconMap = {}) {
+/*
+ * scheduleRetry kaldırıldı.
+ * waitForTarget zaten stability guarantee'si sağlıyor.
+ * Kalan tek retry senaryosu: target connected ama parentElement null —
+ * bu durumda waitForTarget'ın kendi TIMEOUT_MS fallback'i devreye girer.
+ *
+ * requestId kontrolü: injectPanel çağrısına giren requestId snapshot'ı
+ * tüm async boundary'lerde korunuyor (closure + erken return).
+ */
+function injectPanel(posts, comments, mode, username, iconMap = {}, requestId = 0) {
+  // Stale request kontrolü – waitForTarget callback dönmeden önce
+  // yeni bir navigasyon olmuş olabilir
+  if (requestId !== currentRequestId) return;
+
   removePanel();
 
   const target = getTarget();
-  if (!target?.isConnected) return;
+
+  if (!target?.isConnected || !target.parentElement) {
+    // Buraya düşmemeli (waitForTarget stability guarantee'si var)
+    // ama son savunma hattı olarak yeniden bekle
+    waitForTarget(() => {
+      if (requestId !== currentRequestId) return;
+      injectPanel(posts, comments, mode, username, iconMap, requestId);
+    });
+    return;
+  }
 
   const isDark = document.documentElement.classList.contains("rpu-dark");
   const rows = buildRows(posts, comments, mode, iconMap);
@@ -297,6 +352,8 @@ function injectPanel(posts, comments, mode, username, iconMap = {}) {
   const panel = document.createElement("div");
   panel.id = "rpu-panel";
   panel.__rpu_target = target;
+  // ID varsa hızlı DOM lookup için sakla, yoksa undefined kalır
+  if (target.id) panel.__rpu_target_id = target.id;
 
   const allTs = [...posts, ...comments].map(x => x.created_utc);
   panel.__rpu_oldestTs = allTs.length ? Math.min(...allTs) : Infinity;
@@ -320,12 +377,12 @@ function injectPanel(posts, comments, mode, username, iconMap = {}) {
       const q = e.target.value.trim();
 
       searchTimer = setTimeout(() => {
-        const requestId = ++currentRequestId;
+        const searchRequestId = ++currentRequestId;
 
         chrome.runtime.sendMessage(
           { type: "FETCH_USER", username, query: q || undefined },
           async res => {
-            if (!res?.ok || requestId !== currentRequestId) return;
+            if (!res?.ok || searchRequestId !== currentRequestId) return;
 
             const subs = [...res.posts.map(p => p.subreddit), ...res.comments.map(c => c.subreddit)];
             const newIconMap = await fetchIconMap(subs);
@@ -346,6 +403,17 @@ function injectPanel(posts, comments, mode, username, iconMap = {}) {
   target.style.display = "none";
   target.parentElement.insertBefore(panel, target);
   attachScrollPagination(mode, username, iconMap);
+
+  if (!window.__rpu_click_bound) {
+    window.__rpu_click_bound = true;
+
+    document.addEventListener("click", (e) => {
+      const row = e.target.closest(".rpu-row");
+      if (!row) return;
+      const url = row.dataset.url;
+      if (url) window.open(url, "_blank");
+    });
+  }
 }
 
 /* ── MAIN ── */
@@ -356,10 +424,14 @@ function handleUser() {
 
 async function _handleUser() {
   const match = location.pathname.match(/^\/user\/([^/]+)(?:\/([^/]*))?/);
-  if (!match) { removePanel(); return; }
+  if (!match) {
+    removePanel();
+    return;
+  }
 
   const username = match[1];
   const section = (match[2] ?? "").trim();
+
   const modeMap = { "": "mixed", submitted: "posts", comments: "comments" };
   const mode = modeMap[section];
   if (!mode) return;
@@ -373,11 +445,13 @@ async function _handleUser() {
       ...res.posts.map(p => p.subreddit),
       ...res.comments.map(c => c.subreddit),
     ];
+
     const iconMap = await fetchIconMap(subs);
 
     waitForTarget(() => {
+      // fetchIconMap async süresinde yeni nav geldiyse iptal et
       if (requestId !== currentRequestId) return;
-      injectPanel(res.posts, res.comments, mode, username, iconMap);
+      injectPanel(res.posts, res.comments, mode, username, iconMap, requestId);
     });
   });
 }
