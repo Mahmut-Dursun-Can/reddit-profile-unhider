@@ -163,7 +163,9 @@
 
 .rpu-title {
   color: #111827;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
+
 }
 
 
@@ -178,8 +180,20 @@
 .rpu-selftext * {
   color: inherit;
 }
+.rpu-comment {
+  overflow: visible;
+  max-height: none;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+  font-weight:100;
+}
+
 
 .rpu-dark .rpu-selftext {
+  max-height: none;
+  font-size: 14px;
+  line-height: 1.5;
   color: #cbd5e1;
 }
 
@@ -263,3 +277,4 @@
 .rpu-dark #rpu-search:focus {
   border: 1px solid #ff4500;
 }
+/* Comments text color */
