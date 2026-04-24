@@ -105,6 +105,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  color: #000000;
   overflow: visible;
 }
 
@@ -162,12 +163,11 @@
 }
 
 .rpu-title {
-  color: #111827;
+  color: #000000;
   font-size: 15px;
   font-weight: 800;
 
 }
-
 
 .rpu-selftext {
   overflow: visible;
@@ -177,9 +177,6 @@
   color: #374151;
 }
 
-.rpu-selftext * {
-  color: inherit;
-}
 .rpu-comment {
   overflow: visible;
   max-height: none;
@@ -190,27 +187,23 @@
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
 .rpu-dark .rpu-selftext {
   max-height: none;
   font-size: 14px;
   line-height: 1.5;
-  color: #cbd5e1;
+  color: #d1d5db;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* ── Dark theme ── */
 .rpu-dark {
@@ -223,35 +216,28 @@
 
 .rpu-dark #rpu-panel {
   background: #0f1113;
-  color: var(--color-neutral-content-strong);
-}
+    color: #16cc56;
 
-.rpu-dark #rpu-panel * {
-  color: inherit;
-}
-
-.rpu-dark #rpu-panel,
-.rpu-dark #rpu-panel * {
-  color: #e6e6e6;
 }
 
 .rpu-dark .rpu-date,
 .rpu-dark .rpu-empty {
-  color: #9aa0a6 !important;
+  color: #9aa0a6
 }
 
 .rpu-dark .rpu-sub {
-  color: #ff4500 !important;
+  color: #4072de;
+}
+.rpu-dark .rpu-row{
+  border: 1px solid #4d4d4d;
+
 }
 
 .rpu-dark .rpu-row:hover {
   background: #1a1c1e;
 }
 
-/* ── Dark theme row text override ── */
-.rpu-dark .rpu-row {
-  border-bottom: 1px solid #ffffff;
-}
+
 
 /* ── Search placeholder (dark mode) ── */
 .rpu-dark #rpu-search::placeholder {
@@ -271,10 +257,18 @@
   border-radius: 6px;
   padding: 6px 10px;
   outline: none;
-  color: #e6e6e6 !important;
+  color: #e6e6e6;
   background: #0f1113;
 }
 .rpu-dark #rpu-search:focus {
   border: 1px solid #ff4500;
 }
 /* Comments text color */
+.rpu-dark .rpu-title {
+  color: #16cc56;
+  font-size: 15px;
+  font-weight: 800;
+}
+.rpu-dark .rpu-comment {
+  color: #d1d5db;
+}
