@@ -1,4 +1,6 @@
-About
+# Reddit Profile Unhider
+
+## About
 A browser extension that enables users to view hidden posts and comments on Reddit profiles
 Some Reddit users hide their profiles via settings, assuming their content is no longer accessible. This extension retrieves publicly archived versions of that content via external services.
 
