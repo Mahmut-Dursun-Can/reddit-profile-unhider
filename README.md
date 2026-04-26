@@ -11,7 +11,7 @@ The extension sends requests to the Arctic Photon API to fetch archived Reddit d
 
 It then injects the retrieved content into the /user/${username} endpoint page using DOM manipulation, making hidden or non-visible content accessible within the Reddit interface.
 
-## 🔐 Privacy
+## 🛡️ 🛡️ Privacy
 
 This extension does not collect, store, or share any personal user data.
 
@@ -27,5 +27,5 @@ It does not bypass Reddit authentication or access private data. All retrieved c
 
 This project is not affiliated with Reddit.
 
-
+## Acknowledgements
 Special thanks to the Arctic Photon for providing this service.
