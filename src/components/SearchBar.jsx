@@ -38,7 +38,7 @@ export default function SearchBar({ onSearch }) {
     <div className="rpu-header">
       <input
         id="rpu-search"
-        placeholder={searching ? "Aranıyor…" : "Search"}
+        placeholder={searching ? "Searching…" : "Search only posts"}
         value={query}
         disabled={searching}
         onChange={e => setQuery(e.target.value)}

@@ -16,7 +16,7 @@ function tryMount(props, retries = 0) {
   const target = getTarget();
 
   if (!target?.parentElement) {
-    if (retries >= 20) return; // 2 saniye sonra pes et
+    if (retries >= 20) return;
     setTimeout(() => tryMount(props, retries + 1), 100);
     return;
   }
@@ -38,13 +38,10 @@ function tryMount(props, retries = 0) {
     />
   );
 
-  // hiddenTarget DOM'dan çıkarılırsa paneli de temizle
   targetObserver = new MutationObserver(() => {
     if (hiddenTarget && !document.contains(hiddenTarget)) {
       targetObserver?.disconnect();
       targetObserver = null;
-      // container hâlâ bağlıysa bırak, unmount etme
-      // (content.js zaten yeni run başlatacak)
     }
   });
   targetObserver.observe(document.body, { childList: true, subtree: true });
