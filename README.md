@@ -11,11 +11,15 @@ The extension sends requests to the Arctic Photon API to fetch archived Reddit d
 
 It then injects the retrieved content into the /user/${username} endpoint page using DOM manipulation, making hidden or non-visible content accessible within the Reddit interface.
 
-## 🛡️ 🛡️ Privacy
+## 🛡️ Privacy
 
-This extension does not collect, store, or share any personal user data.
+This extension does not collect, store, or process any personal user data.
 
-All requests are made directly to the Arctic Photon API to fetch publicly available archived Reddit content.
+All requests are made directly from the client (browser) to the Arctic Photon API. The extension only constructs request URLs and forwards them without intercepting or persisting any data.
+
+No backend server is used, and no data is stored locally or remotely by this extension.
+
+The extension does not use cookies, tracking scripts, or analytics
 
 No authentication or sensitive information is required.
 
@@ -27,5 +31,20 @@ It does not bypass Reddit authentication or access private data. All retrieved c
 
 This project is not affiliated with Reddit.
 
-## Acknowledgements
+## 🤝 Acknowledgements
 Special thanks to the Arctic Photon for providing this service.
+
+## ⚙️ Requirements
+
+Node.js 20.20.0
+npm 10.8.2
+Vite 8.0.9
+
+## Build Instructions
+cd reddit-profile-unhider
+
+# Install dependencies
+npm install
+
+# Build the project (Vite bundler is used)
+npm run build

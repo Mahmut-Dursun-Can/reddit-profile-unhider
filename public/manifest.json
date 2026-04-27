@@ -20,5 +20,15 @@
       "js": ["content.js"],
       "css": ["style.css"]
     }
-  ]
+  ],
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cmahmutdursun@gmail.com",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "optional": []
+      }
+    }
+  }
 }
