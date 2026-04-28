@@ -35,16 +35,21 @@ This project is not affiliated with Reddit.
 Special thanks to the Arctic Photon for providing this service.
 
 ## ⚙️ Requirements
-
+```
 Node.js 20.20.0
 npm 10.8.2
 Vite 8.0.9
-
+```
 ## Build Instructions
+```
 cd reddit-profile-unhider
+```
 
-# Install dependencies
+## Install dependencies
+```
 npm install
-
-# Build the project (Vite bundler is used)
+```
+## Build the project (Vite bundler is used)
+```
 npm run build
+```

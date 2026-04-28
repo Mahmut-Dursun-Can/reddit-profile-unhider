@@ -24,7 +24,7 @@
 
   "browser_specific_settings": {
     "gecko": {
-      "id": "cmahmutdursun@gmail.com",
+      "id": "reddit-profile-unhider@github",
       "data_collection_permissions": {
         "required": ["none"],
         "optional": []
