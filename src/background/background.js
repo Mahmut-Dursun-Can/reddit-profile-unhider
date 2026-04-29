@@ -3,19 +3,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   const base = "https://arctic-shift.photon-reddit.com/api/";
   const u = encodeURIComponent(msg.username);
-  const before = msg.before ? `&before=${msg.before}` : "";
-  const titleQ = msg.query ? `&title=${encodeURIComponent(msg.query)}` : "";
 
-  Promise.all([
-    fetch(base + "comments/search?author=" + u + "&limit=25" + before + "&md2html=true").then(r => r.json()),
-    fetch(base + "posts/search?author=" + u + "&limit=25" + before + titleQ + "&md2html=true").then(r => r.json())
+  const before = msg.before ? `&before=${msg.before}` : "";
+
+  const query = msg.query ? encodeURIComponent(msg.query) : "";
+
+  const titleQ = query ? `&title=${query}` : "";
+  const selftextQ = query ? `&selftext=${query}` : "";
+  const bodyQ = query ? `&body=${query}` : "";
+
+  Promise.allSettled([
+    fetch(`${base}comments/search?author=${u}&limit=25${before}${bodyQ}`).then(r => r.json()),
+    fetch(`${base}posts/search?author=${u}&limit=25${before}${titleQ}`).then(r => r.json()),
+    fetch(`${base}posts/search?author=${u}&limit=25${before}${selftextQ}`).then(r => r.json()),
+    fetch(`${base}comments/search?author=${u}&limit=10${before}${bodyQ}`).then(r => r.json())
   ])
-    .then(([comments, posts]) => sendResponse({
-      ok: true,
-      comments: comments?.data ?? [],
-      posts: posts?.data ?? []
-    }))
-    .catch(err => sendResponse({ ok: false, error: err.message }));
+    .then(results => {
+      const [comments, posts, selftext, body] = results.map(r =>
+        r.status === "fulfilled" ? r.value?.data ?? [] : []
+      );
+
+      sendResponse({
+        ok: true,
+        comments,
+        posts,
+        selftext,
+        body
+      });
+    })
+    .catch(err => {
+      sendResponse({ ok: false, error: err.message });
+    });
 
   return true;
 });
