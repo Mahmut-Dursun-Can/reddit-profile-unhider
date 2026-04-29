@@ -13,7 +13,7 @@ function normalizeItems(posts, comments, mode) {
       type: x.body ? "comment" : "post",
       data: x
     }))
-    .sort((a, b) => b.data.created_utc - a.data.created_utc);
+    .sort((a, b) => (b.data.created_utc ?? 0) - (a.data.created_utc ?? 0));
 }
 
 export default function Panel({ initialPosts, initialComments, mode, username, initialIconMap }) {
