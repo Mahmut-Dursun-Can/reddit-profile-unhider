@@ -43,23 +43,25 @@ export default function Panel({ initialPosts, initialComments, mode, username, i
     setSearch(query);
 
     const res = await fetchUser(username, query ? { query } : {});
-    const comments = res.comments ?? [];
 
-    const posts = [...(res.posts ?? []), ...(res.selftext ?? []), ...(res.body ?? [])]
-      .filter(p => {
-        if (seenRef.current.has(p.id)) return false;
-        seenRef.current.add(p.id);
-        return true;
-      });
+    seenRef.current.clear();
+
+    const posts = [...(res.posts ?? []), ...(res.selftext ?? [])];
+
+    const comments = (res.comments ?? []).filter(c => {
+      if (seenRef.current.has(c.id)) return false;
+      seenRef.current.add(c.id);
+      return true;
+    });
 
     const subs = [...posts, ...comments].map(x => x.subreddit);
 
     if (subs.length) {
-      const newIcons = await fetchIconMap(subs);
+      const newIcons = await fetchIconMap([...new Set(subs)]);
       setIconMap(prev => ({ ...prev, ...newIcons }));
     }
 
-    setItems(normalizeItems(posts, comments, query ? "posts" : mode));
+    setItems(normalizeItems(posts, comments, query ? "all" : mode));
     setExhausted(false);
 
     const allTs = [...posts, ...comments].map(x => x.created_utc);
@@ -78,12 +80,7 @@ export default function Panel({ initialPosts, initialComments, mode, username, i
         ...(search && { query: search })
       });
 
-      const newPosts = [...(res.posts ?? []), ...(res.selftext ?? []), ...(res.body ?? [])]
-        .filter(p => {
-          if (seenRef.current.has(p.id)) return false;
-          seenRef.current.add(p.id);
-          return true;
-        });
+      const newPosts = [...(res.posts ?? []), ...(res.selftext ?? [])];
 
       const newComments = (res.comments ?? []).filter(c => {
         if (seenRef.current.has(c.id)) return false;
@@ -97,7 +94,7 @@ export default function Panel({ initialPosts, initialComments, mode, username, i
       }
 
       const subs = [...newPosts, ...newComments].map(x => x.subreddit);
-      const newIcons = await fetchIconMap(subs);
+      const newIcons = await fetchIconMap([...new Set(subs)]);
       setIconMap(prev => ({ ...prev, ...newIcons }));
 
       const allTs = [...newPosts, ...newComments].map(x => x.created_utc);
@@ -105,10 +102,12 @@ export default function Panel({ initialPosts, initialComments, mode, username, i
         oldestTsRef.current = Math.min(oldestTsRef.current ?? Infinity, ...allTs);
       }
 
+      const currentMode = search ? "all" : mode;
+
       setItems(prev => [
         ...prev,
-        ...normalizeItems(newPosts, newComments, mode)
-      ].slice(-500)); // prevent memory growth
+        ...normalizeItems(newPosts, newComments, currentMode)
+      ].slice(-500));
 
     } finally {
       loadingRef.current = false;
