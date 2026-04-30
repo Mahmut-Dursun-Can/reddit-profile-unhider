@@ -2,7 +2,7 @@
   "manifest_version": 2,
 
   "name": "Reddit Profile Unhider",
-  "version": "1.0",
+  "version": "1.1.0",
 
   "permissions": [
     "storage",

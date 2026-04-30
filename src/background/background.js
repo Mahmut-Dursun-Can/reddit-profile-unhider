@@ -15,8 +15,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   Promise.allSettled([
     fetch(`${base}comments/search?author=${u}&limit=25${before}${bodyQ}`).then(r => r.json()),
     fetch(`${base}posts/search?author=${u}&limit=25${before}${titleQ}`).then(r => r.json()),
-    fetch(`${base}posts/search?author=${u}&limit=25${before}${selftextQ}`).then(r => r.json()),
-    fetch(`${base}comments/search?author=${u}&limit=10${before}${bodyQ}`).then(r => r.json())
+    fetch(`${base}posts/search?author=${u}&limit=25${before}${selftextQ}`).then(r => r.json())
   ])
     .then(results => {
       const [comments, posts, selftext, body] = results.map(r =>
@@ -27,8 +26,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         ok: true,
         comments,
         posts,
-        selftext,
-        body
+        selftext
       });
     })
     .catch(err => {

@@ -6,7 +6,6 @@ import rehypeExternalLinks from "rehype-external-links";
 export default function Row({ item, iconMap }) {
   const isComment = item.type === "comment";
   const data = item.data;
-
   const url = `https://reddit.com${data.permalink}`;
   const iconUrl = iconMap?.[data.subreddit];
 

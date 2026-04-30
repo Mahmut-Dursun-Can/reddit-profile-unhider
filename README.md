@@ -11,7 +11,7 @@ Some Reddit users hide their profiles via settings and assuming their content is
 
 ## 🧠 How It Works
 
-When a user's profile page is opened, it sends requests to Arctic Shift API to fetch archived Reddit data. It then injects the retrieved content into the /user/${username} endpoint page using DOM manipulation, making hidden or content accessible within the Reddit interface.
+When a user's profile page is opened, it sends requests to Arctic Shift API to fetch archived Reddit data. It then injects the retrieved content into the /user/${username} endpoint page using DOM manipulation, making hidden content accessible within the Reddit interface.
 
 ## 🛡️ Privacy
 
