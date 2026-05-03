@@ -5,6 +5,8 @@
 > This project uses publicly available archived data.
 > It does not bypass Reddit authentication or access private data. All retrieved content is sourced from external archives.
 
+This project only available in firefox: https://addons.mozilla.org/en-US/firefox/addon/reddit-profile-unhider/?utm_source=addons.mozilla.org&utm_medium=referral&utm_content=search
+
 ## About
 A browser extension that enables users to view hidden posts and comments on Reddit profiles.
 Some Reddit users hide their profiles via settings and assuming their content is no longer accessible. This extension retrieves publicly archived versions of that content via external services.
